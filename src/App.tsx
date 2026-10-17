@@ -34,8 +34,10 @@ import { Security } from './pages/Security';
 import { AiAccess } from './pages/AiAccess';
 import { Audit } from './pages/Audit';
 import { OAuthConsent } from './pages/OAuthConsent';
+import { Landing } from './pages/Landing';
 
 const NAV = [
+  { id: 'landing', label: 'Landing', icon: ({ size }: { size?: number }) => <span style={{ fontSize: size ?? 16 }}>◉</span> },
   { id: 'timeline', label: 'Timeline', icon: Icon.timeline },
   { id: 'analytics', label: 'Analytics', icon: Icon.chart },
   { id: 'devices', label: 'Devices', icon: Icon.devices },
@@ -145,7 +147,8 @@ export function App() {
 
       <main className="main">
         <div className="main-inner">
-          {tab === 'timeline' && <Timeline api={api} dataKey={key} />}
+          {tab === 'landing' && <Landing />}
+        {tab === 'timeline' && <Timeline api={api} dataKey={key} />}
           {tab === 'analytics' && <Analytics api={api} dataKey={key} />}
           {tab === 'devices' && <Devices api={api} />}
           {tab === 'privacy' && <Privacy api={api} dataKey={key} />}

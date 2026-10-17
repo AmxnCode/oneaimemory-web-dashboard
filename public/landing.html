@@ -1,0 +1,949 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OneAIMemory — Give your AI real context, safely</title>
+  <meta name="description" content="OneAIMemory quietly remembers what you research, read, and work on across every device, end-to-end encrypted, and lets Claude, ChatGPT, and other AI tools use it — only with your permission." />
+  <style>
+    :root {
+      color-scheme: dark;
+      --canvas:       #000000;
+      --canvas-2:     #050506;
+      --panel:        #0a0a0b;
+      --panel-2:      #101012;
+      --glass:        rgba(255,255,255,0.025);
+      --hover:        #151517;
+      --line:         #1a1a1c;
+      --line-2:       #27272a;
+      --ink:          #f4f4f6;
+      --ink-2:        #9a9aa2;
+      --ink-3:        #616166;
+      --violet:       #8b6ff0;
+      --cyan:         #2fd8d0;
+      --ok:           #34c17a;
+      --accent-ink:   #06060a;
+      --serif: Georgia, 'Iowan Old Style', 'Times New Roman', ui-serif, serif;
+      --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, sans-serif;
+      --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+      --r-sm: 7px; --r-md: 10px; --r-lg: 16px; --r-xl: 22px; --r-full: 999px;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      background: var(--canvas);
+      color: var(--ink);
+      font-family: var(--sans);
+      -webkit-font-smoothing: antialiased;
+      line-height: 1.5;
+      position: relative;
+      overflow-x: hidden;
+    }
+    a { color: inherit; }
+    img, svg { max-width: 100%; }
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+    .wrap.wide { max-width: 1240px; }
+    .mono { font-family: var(--mono); }
+
+    /* --- ambient background --- */
+    .bg-fixed { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+    .bg-grain {
+      position: absolute; inset: 0; opacity: 0.045; mix-blend-mode: overlay;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+
+    /* --- nav --- */
+    header.nav {
+      position: sticky; top: 0; z-index: 20;
+      background: color-mix(in srgb, var(--canvas) 70%, transparent);
+      backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--line);
+    }
+    .nav-inner { display: flex; align-items: center; justify-content: space-between; padding: 15px 24px; max-width: 1240px; margin: 0 auto; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 15px; text-decoration: none; letter-spacing: -0.01em; }
+    .brand-mark {
+      width: 28px; height: 28px; border-radius: 8px;
+      background: linear-gradient(155deg, #2b2b30 0%, #0a0a0c 70%);
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08), 0 4px 14px -4px rgba(139,111,240,0.5);
+    }
+    .nav-links { display: flex; align-items: center; gap: 22px; font-size: 14px; }
+    .nav-links a.signin { color: var(--ink-2); text-decoration: none; white-space: nowrap; }
+    .nav-links a.signin:hover { color: var(--ink); }
+    @media (max-width: 520px) {
+      .nav-inner { padding: 13px 16px; gap: 10px; }
+      .brand { font-size: 14px; gap: 8px; }
+      .nav-links { gap: 10px; }
+      .nav-win { display: none; }
+      .btn.sm { padding: 9px 13px; font-size: 12.5px; }
+    }
+    @media (max-width: 380px) { .nav-links a.signin { display: none; } }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px; justify-content: center;
+      padding: 12px 22px; border-radius: var(--r-md); font-size: 14px; font-weight: 600;
+      text-decoration: none; border: 1px solid transparent; cursor: pointer; white-space: nowrap;
+      transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.15s ease, border-color 0.15s ease;
+    }
+    .btn.primary { background: var(--ink); color: var(--accent-ink); box-shadow: 0 8px 24px -10px rgba(255,255,255,0.25); }
+    .btn.primary:hover { transform: translateY(-1px); background: #fff; }
+    .btn.ghost { background: var(--glass); color: var(--ink); border-color: var(--line-2); backdrop-filter: blur(6px); }
+    .btn.ghost:hover { background: var(--hover); border-color: color-mix(in srgb, var(--violet) 40%, var(--line-2)); }
+    .btn.sm { padding: 9px 16px; font-size: 13px; }
+
+    /* --- hero: text sits above a live 3D scene --- */
+    .hero { position: relative; padding: 104px 0 0; text-align: center; }
+    .hero .eyebrow {
+      display: inline-flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 12px; font-weight: 500;
+      color: var(--ink-2); padding: 6px 14px; border-radius: var(--r-full); margin-bottom: 30px;
+      border: 1px solid transparent;
+      background: linear-gradient(var(--canvas-2), var(--canvas-2)) padding-box,
+                  linear-gradient(120deg, var(--cyan), var(--violet) 60%, var(--cyan)) border-box;
+    }
+    .eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 8px 1px var(--cyan); animation: dotPulse 2s ease-in-out infinite; }
+    @keyframes dotPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+    .hero h1 { font-family: var(--serif); font-weight: 450; font-size: 76px; line-height: 1.04; margin: 0 0 24px; letter-spacing: -0.01em; }
+    .hero h1 .holo {
+      background: linear-gradient(100deg, var(--cyan) 0%, var(--violet) 45%, #f0a8e0 70%, var(--cyan) 100%);
+      background-size: 220% auto;
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+      font-style: italic; animation: holoShift 6s ease-in-out infinite;
+    }
+    @keyframes holoShift { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+    .hero p.sub { font-size: 18.5px; color: var(--ink-2); max-width: 600px; margin: 0 auto 38px; }
+    .hero .ctas { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .hero .note { margin-top: 22px; font-size: 12.5px; color: var(--ink-3); max-width: 560px; margin-left: auto; margin-right: auto; }
+
+    /* --- the 3D stage --- */
+    .stage {
+      position: relative; margin-top: -40px; height: 660px; width: 100%;
+      /* the scene fades into the page instead of ending on a hard edge */
+      -webkit-mask-image: linear-gradient(#000 0%, #000 78%, transparent 100%);
+              mask-image: linear-gradient(#000 0%, #000 78%, transparent 100%);
+    }
+    .stage canvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: pan-y; }
+    .stage canvas:active { cursor: grabbing; }
+    .stage-hint {
+      position: absolute; left: 50%; transform: translateX(-50%); bottom: 96px; z-index: 2;
+      font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); pointer-events: none;
+      display: flex; align-items: center; gap: 7px; white-space: nowrap;
+      transition: opacity 0.5s ease;
+    }
+    .stage-hint .key { border: 1px solid var(--line-2); border-radius: 5px; padding: 2px 7px; color: var(--ink-2); }
+    @media (max-width: 900px) { .stage { height: 500px; } }
+    @media (max-width: 560px) {
+      .stage { height: 400px; margin-top: -10px; }
+      .hero h1 { font-size: 40px; }
+      .stage-hint { bottom: 64px; }
+    }
+
+    /* --- flow diagram --- */
+    .flow-visual {
+      margin: 0 auto; max-width: 900px; height: 430px; border-radius: var(--r-xl); overflow: hidden;
+      border: 1px solid var(--line-2); box-shadow: 0 50px 110px -28px rgba(0,0,0,0.9), inset 0 1px 0 color-mix(in srgb, var(--ink) 6%, transparent);
+      background: var(--panel); position: relative;
+    }
+    .flow-visual::before {
+      content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 2;
+      background-image:
+        linear-gradient(color-mix(in srgb, var(--ink) 4%, transparent) 1px, transparent 1px),
+        linear-gradient(90deg, color-mix(in srgb, var(--ink) 4%, transparent) 1px, transparent 1px);
+      background-size: 40px 40px;
+      -webkit-mask-image: radial-gradient(ellipse 480px 380px at 50% 50%, transparent 0%, #000 75%);
+              mask-image: radial-gradient(ellipse 480px 380px at 50% 50%, transparent 0%, #000 75%);
+      opacity: 0.7;
+    }
+    .flow-tag {
+      position: absolute; top: 16px; left: 18px; z-index: 3;
+      display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; color: var(--ink-3);
+    }
+    .flow-tag .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 6px 1px var(--ok); }
+    .flow-svg { display: block; width: 100%; height: 100%; position: relative; z-index: 1; }
+    .flow-caption { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; margin-top: 18px; font-size: 12.5px; color: var(--ink-3); }
+    .flow-caption .arrow { color: var(--cyan); }
+    @media (max-width: 900px) { .flow-visual { height: 320px; } }
+    @media (max-width: 560px) { .flow-visual { height: 300px; } }
+
+    .node-label { font-family: var(--sans); font-size: 12px; font-weight: 600; fill: var(--ink-3); }
+    .badge-label { font-family: var(--sans); font-size: 13.5px; font-weight: 600; fill: var(--ink); }
+    .node-badge { fill: url(#tileGrad); stroke: var(--line-2); }
+    .node-icon { stroke: var(--ink-2); }
+    .conn-pill { fill: url(#tileGrad); stroke: var(--line-2); }
+    .plug { stroke: var(--ink-3); }
+    .dot-local { fill: var(--ok); }
+    .dot-remote { fill: var(--violet); }
+
+    /* dash pattern moves in the direction the path was drawn (start -> end)
+       when stroke-dashoffset animates negative — both wire groups below are
+       drawn start=source, end=destination, so both use the same negative
+       keyframe: left wires drawn device->core, right wires drawn core->badge,
+       giving apps/devices -> core -> AI tools, never the reverse. */
+    .wire-base { fill: none; stroke: var(--line-2); stroke-width: 1.4; }
+    .wire-flow { fill: none; stroke-width: 2; stroke-linecap: round; animation: wireFlow linear infinite; }
+    .wire-flow.in { stroke: var(--cyan); stroke-dasharray: 2 24; animation-duration: 2.4s; }
+    .wire-flow.out-local { stroke: var(--ok); stroke-dasharray: 2 26; animation-duration: 2.6s; }
+    .wire-flow.out-remote { stroke: var(--violet); stroke-dasharray: 2 26; animation-duration: 2.6s; }
+    @keyframes wireFlow { to { stroke-dashoffset: -260; } }
+
+    .core-group { transform-origin: 450px 215px; animation: corePulse 3.6s ease-in-out infinite; }
+    .core-glow { animation: coreGlowPulse 3.6s ease-in-out infinite; }
+    @keyframes corePulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.035); } }
+    @keyframes coreGlowPulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.6; } }
+    .core-rim { animation: rimSpin 10s linear infinite; transform-origin: 450px 215px; }
+    @keyframes rimSpin { to { transform: rotate(360deg); } }
+    .conn-pulse { animation: connPulse 2.6s ease-in-out infinite; }
+    @keyframes connPulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+    @media (max-width: 560px) { .node-label, .badge-label { display: none; } }
+
+    @media (prefers-reduced-motion: reduce) {
+      .wire-flow, .core-group, .core-glow, .conn-pulse, .core-rim,
+      .eyebrow .dot, .hero h1 .holo, .feed-track { animation: none !important; }
+    }
+
+    /* --- live feed ticker --- */
+    .feed-wrap {
+      margin: 0 auto; max-width: 640px; border-radius: var(--r-lg); overflow: hidden;
+      border: 1px solid var(--line-2); background: var(--panel);
+      box-shadow: 0 40px 90px -30px rgba(0,0,0,0.85);
+    }
+    .feed-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); }
+    .feed-head .live { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); }
+    .feed-head .live .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 6px 1px var(--ok); animation: dotPulse 2s ease-in-out infinite; }
+    .feed-viewport { height: 230px; overflow: hidden; position: relative; }
+    .feed-viewport::before, .feed-viewport::after { content: ''; position: absolute; left: 0; right: 0; height: 40px; z-index: 2; pointer-events: none; }
+    .feed-viewport::before { top: 0; background: linear-gradient(var(--panel), transparent); }
+    .feed-viewport::after { bottom: 0; background: linear-gradient(transparent, var(--panel)); }
+    .feed-track { animation: feedScroll 16s linear infinite; }
+    @keyframes feedScroll { from { transform: translateY(0); } to { transform: translateY(-50%); } }
+    .feed-row { display: grid; grid-template-columns: 72px 78px 1fr auto; gap: 12px; align-items: baseline; padding: 9px 16px; font-family: var(--mono); font-size: 12.5px; white-space: nowrap; }
+    .feed-row .t { color: var(--ink-3); }
+    .feed-row .k { color: var(--violet); }
+    /* min-width:0 lets the 1fr track actually shrink; without it the grid
+       item's automatic minimum size keeps the row wider than the container
+       and the ellipsis never kicks in. */
+    .feed-row .v { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+    .feed-row .s { color: var(--ok); }
+    /* Narrow screens: drop the repeated "encrypted" tag rather than let the
+       fixed + auto tracks squeeze the actual value down to zero width. */
+    @media (max-width: 620px) {
+      .feed-row { grid-template-columns: 58px 62px 1fr; gap: 10px; font-size: 11px; padding: 9px 14px; }
+      .feed-row .s { display: none; }
+    }
+
+    /* --- sections --- */
+    section { padding: 96px 0; position: relative; }
+    section.alt { background: var(--canvas-2); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+    .section-head { text-align: center; max-width: 580px; margin: 0 auto 52px; }
+    .section-head .kicker { font-family: var(--mono); font-size: 12px; color: var(--cyan); margin: 0 0 14px; letter-spacing: 0.02em; }
+    .section-head h2 { font-family: var(--serif); font-weight: 450; font-size: 38px; margin: 0 0 14px; letter-spacing: -0.01em; }
+    .section-head p { font-size: 16px; color: var(--ink-2); margin: 0; }
+
+    /* --- feature cards: real CSS 3D tilt, lit by the cursor --- */
+    .tilt-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; perspective: 1400px; }
+    @media (max-width: 780px) { .tilt-grid { grid-template-columns: 1fr; } }
+    .tilt {
+      position: relative; padding: 34px 30px; border-radius: var(--r-lg);
+      background: linear-gradient(160deg, #101013 0%, #08080a 100%);
+      border: 1px solid var(--line-2); overflow: hidden;
+      transform-style: preserve-3d;
+      transition: transform 0.35s cubic-bezier(.2,.7,.3,1), border-color 0.3s ease;
+      will-change: transform;
+    }
+    .tilt:hover { border-color: color-mix(in srgb, var(--violet) 40%, var(--line-2)); }
+    /* cursor spotlight, positioned by JS via --mx/--my */
+    .tilt::after {
+      content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.3s ease;
+      background: radial-gradient(340px circle at var(--mx, 50%) var(--my, 50%), rgba(255,255,255,0.07), transparent 60%);
+    }
+    .tilt:hover::after { opacity: 1; }
+    .tilt .lift { transform: translateZ(38px); transform-style: preserve-3d; }
+    .tilt .orb {
+      --glow: var(--violet);
+      width: 62px; height: 62px; border-radius: 50%; margin-bottom: 20px;
+      background:
+        radial-gradient(circle at 32% 26%, rgba(255,255,255,0.85), rgba(255,255,255,0.06) 22%, transparent 44%),
+        radial-gradient(circle at 72% 80%, var(--glow) 0%, transparent 58%),
+        linear-gradient(155deg, #2b2b30 0%, #0a0a0c 65%);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08), 0 24px 40px -16px var(--glow), 0 0 28px -8px var(--glow);
+    }
+    .tilt .orb.cyan { --glow: var(--cyan); }
+    .tilt .orb.ok { --glow: var(--ok); }
+    .tilt h3 { font-size: 19px; margin: 0 0 10px; letter-spacing: -0.01em; font-weight: 620; }
+    .tilt p { font-size: 14.5px; color: var(--ink-2); margin: 0; line-height: 1.65; }
+
+    /* --- steps --- */
+    .steps { position: relative; display: flex; flex-direction: column; max-width: 620px; margin: 0 auto; counter-reset: step; }
+    .steps::before { content: ''; position: absolute; left: 19px; top: 20px; bottom: 20px; width: 1px; background: var(--line-2); }
+    .step { position: relative; display: flex; gap: 20px; padding: 26px 0; }
+    .step .num {
+      counter-increment: step;
+      position: relative; z-index: 1; flex-shrink: 0; width: 40px; height: 40px; border-radius: 50%;
+      background: var(--panel-2); border: 1px solid var(--line-2); color: var(--ink-2);
+      display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; font-family: var(--mono);
+    }
+    .step:nth-child(1) .num { color: var(--ink); border-color: color-mix(in srgb, var(--cyan) 50%, var(--line-2)); box-shadow: 0 0 0 4px color-mix(in srgb, var(--cyan) 10%, transparent), 0 0 18px -6px var(--cyan); }
+    .step .num::before { content: counter(step); }
+    .step h3 { font-size: 16px; margin: 0 0 6px; letter-spacing: -0.01em; }
+    .step p { font-size: 14px; color: var(--ink-2); margin: 0; line-height: 1.6; }
+
+    /* --- AI tools row --- */
+    .tools-row { display: flex; justify-content: center; gap: 14px; flex-wrap: wrap; }
+    .tool-pill {
+      display: flex; align-items: center; gap: 10px; background: var(--glass); border: 1px solid var(--line-2);
+      border-radius: var(--r-full); padding: 11px 20px 11px 12px; font-size: 14px; font-weight: 550;
+      backdrop-filter: blur(6px); transition: border-color 0.2s ease, transform 0.2s ease;
+    }
+    .tool-pill:hover { border-color: color-mix(in srgb, var(--violet) 45%, var(--line-2)); transform: translateY(-1px); }
+    .tool-pill .mono-badge {
+      width: 26px; height: 26px; border-radius: 50%;
+      background: linear-gradient(155deg, #2b2b30 0%, #0a0a0c 70%); border: 1px solid var(--line-2);
+      display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 10.5px; font-weight: 700; color: var(--ink-2);
+    }
+    .tools-legend { display: flex; justify-content: center; gap: 26px; margin-top: 22px; font-size: 12.5px; color: var(--ink-3); flex-wrap: wrap; }
+    .tools-legend span { display: inline-flex; align-items: center; gap: 7px; }
+    .leg-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+    .leg-dot.local { background: var(--ok); box-shadow: 0 0 6px 1px color-mix(in srgb, var(--ok) 60%, transparent); }
+    .leg-dot.remote { background: var(--violet); box-shadow: 0 0 6px 1px color-mix(in srgb, var(--violet) 60%, transparent); }
+
+    /* --- final CTA --- */
+    .cta-band { position: relative; text-align: center; border-radius: var(--r-xl); padding: 76px 32px; overflow: hidden; background: var(--panel); border: 1px solid var(--line-2); }
+    .cta-band::before { content: ''; position: absolute; inset: -40%; z-index: 0; background: radial-gradient(ellipse 460px 300px at 50% 0%, color-mix(in srgb, var(--violet) 24%, transparent), transparent 70%); }
+    .cta-band > * { position: relative; z-index: 1; }
+    .cta-band h2 { font-family: var(--serif); font-weight: 450; font-size: 38px; margin: 0 0 16px; letter-spacing: -0.01em; }
+    .cta-band p { font-size: 16px; color: var(--ink-2); margin: 0 0 32px; }
+    .cta-band .ctas { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+    /* --- footer --- */
+    footer { border-top: 1px solid var(--line); padding: 40px 0; position: relative; }
+    .footer-inner { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+    .footer-inner .brand { font-size: 13.5px; color: var(--ink-3); }
+    .footer-links { display: flex; gap: 22px; font-size: 13.5px; }
+    .footer-links a { color: var(--ink-2); text-decoration: none; }
+    .footer-links a:hover { color: var(--ink); }
+  </style>
+</head>
+<body>
+
+  <div class="bg-fixed"><div class="bg-grain"></div></div>
+
+  <header class="nav">
+    <div class="nav-inner">
+      <a href="/" class="brand">
+        <span class="brand-mark">
+          <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="8" cy="8" r="2.1"/><path d="M8 1.4v2.4M8 12.2v2.4M1.4 8h2.4M12.2 8h2.4"/>
+            <path d="M3.4 3.4l1.7 1.7M10.9 10.9l1.7 1.7M12.6 3.4l-1.7 1.7M5.1 10.9l-1.7 1.7" opacity="0.55"/>
+          </svg>
+        </span>
+        OneAIMemory
+      </a>
+      <div class="nav-links">
+        <a class="signin" href="/app">Sign in</a>
+        <a class="signin nav-win" href="/downloads/OneAIMemory-Setup.exe">Windows</a>
+        <a class="btn primary sm" href="/downloads/OneAIMemory.dmg">Download for Mac</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="wrap">
+        <div class="eyebrow"><span class="dot"></span>end-to-end encrypted · on by default</div>
+        <h1>The context your AI<br>has been <span class="holo">missing</span></h1>
+        <p class="sub">
+          OneAIMemory quietly remembers what you research, read, and work on across
+          every device — then lets Claude, ChatGPT, and other AI tools actually use it,
+          only with your permission.
+        </p>
+        <div class="ctas">
+          <a class="btn primary" href="/downloads/OneAIMemory.dmg">Download for Mac</a>
+          <a class="btn ghost" href="/app">Sign in</a>
+        </div>
+        <p class="note">
+          macOS may warn the app is from an unidentified developer the first time — right-click it and choose Open.
+          On Windows, SmartScreen may do the same — click "More info" → "Run anyway".
+          We're a small team, not yet on Apple's or Microsoft's developer programs.
+          <br>          Not on a Mac? <a href="/downloads/OneAIMemory-Setup.exe" style="color:var(--cyan)">Download for Windows</a> instead.
+        </p>
+      </div>
+
+      <div class="stage" id="stage" aria-hidden="true">
+        <canvas id="scene"></canvas>
+        <div class="stage-hint" id="stageHint"><span class="key">drag</span> to rotate your context</div>
+      </div>
+    </section>
+
+    <section style="padding-top: 24px;">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="kicker">// what it sees</p>
+          <h2>A quiet, running record</h2>
+          <p>Everything captured, encrypted, and synced — the instant it happens.</p>
+        </div>
+        <div class="feed-wrap">
+          <div class="feed-head">
+            <span class="live"><span class="dot"></span>live</span>
+            <span>~/.oneconscious/stream</span>
+          </div>
+          <div class="feed-viewport"><div class="feed-track" id="feedTrack"></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="alt">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="kicker">// how it connects</p>
+          <h2>One context, every tool</h2>
+          <p>Captured on your devices, held in one encrypted place, plugged into the AI you already use.</p>
+        </div>
+
+        <div class="flow-visual">
+          <div class="flow-tag"><span class="dot"></span>live context flow</div>
+          <svg class="flow-svg" viewBox="0 0 880 430" preserveAspectRatio="xMidYMid meet">
+            <defs>
+              <filter id="coreBlur" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="20"/></filter>
+              <radialGradient id="orbBase" cx="34%" cy="26%" r="75%">
+                <stop offset="0%" stop-color="#3a3a40"/><stop offset="45%" stop-color="#1c1c20"/><stop offset="100%" stop-color="#08080a"/>
+              </radialGradient>
+              <radialGradient id="orbHighlight" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#ffffff" stop-opacity="0.85"/><stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+              </radialGradient>
+              <linearGradient id="rimGrad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#2fd8d0"/><stop offset="50%" stop-color="#8b6ff0"/><stop offset="100%" stop-color="#2fd8d0"/>
+              </linearGradient>
+              <linearGradient id="tileGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#16161a"/><stop offset="100%" stop-color="#0a0a0c"/>
+              </linearGradient>
+            </defs>
+
+            <g>
+              <path class="wire-base" d="M92,65  C230,65  310,215 406,215"/>
+              <path class="wire-base" d="M92,162 C230,162 310,215 406,215"/>
+              <path class="wire-base" d="M92,259 C230,259 310,215 406,215"/>
+              <path class="wire-base" d="M92,356 C230,356 310,215 406,215"/>
+              <path class="wire-flow in" d="M92,65  C230,65  310,215 406,215"/>
+              <path class="wire-flow in" d="M92,162 C230,162 310,215 406,215" style="animation-delay:-0.6s"/>
+              <path class="wire-flow in" d="M92,259 C230,259 310,215 406,215" style="animation-delay:-1.2s"/>
+              <path class="wire-flow in" d="M92,356 C230,356 310,215 406,215" style="animation-delay:-1.8s"/>
+            </g>
+            <g>
+              <path class="wire-base" d="M474,215 C570,215 610,65  713,65"/>
+              <path class="wire-base" d="M474,215 C570,215 610,162 713,162"/>
+              <path class="wire-base" d="M474,215 C570,215 610,259 713,259"/>
+              <path class="wire-base" d="M474,215 C570,215 610,356 713,356"/>
+              <path class="wire-flow out-local"  d="M474,215 C570,215 610,65  713,65"/>
+              <path class="wire-flow out-local"  d="M474,215 C570,215 610,162 713,162" style="animation-delay:-0.7s"/>
+              <path class="wire-flow out-local"  d="M474,215 C570,215 610,259 713,259" style="animation-delay:-1.4s"/>
+              <path class="wire-flow out-remote" d="M474,215 C570,215 610,356 713,356" style="animation-delay:-0.3s"/>
+            </g>
+
+            <g class="core-group">
+              <circle class="core-glow" cx="450" cy="215" r="70" fill="url(#rimGrad)" filter="url(#coreBlur)"/>
+              <circle cx="450" cy="215" r="46" fill="url(#orbBase)"/>
+              <circle cx="440" cy="203" r="20" fill="url(#orbHighlight)"/>
+              <circle class="core-rim" cx="450" cy="215" r="49" fill="none" stroke="url(#rimGrad)" stroke-width="1.4" stroke-dasharray="26 180" opacity="0.85"/>
+              <g transform="translate(450,215)" stroke="#fff" stroke-width="2" stroke-linecap="round" fill="none">
+                <circle r="4" fill="#fff" stroke="none"/>
+                <path d="M0,-14v6M0,8v6M-14,0h6M8,0h6"/>
+                <path d="M-9.9,-9.9l4,4M5.9,5.9l4,4M9.9,-9.9l-4,4M-5.9,5.9l-4,4" opacity="0.55"/>
+              </g>
+            </g>
+
+            <g transform="translate(68,65)">
+              <rect class="node-badge" x="-22" y="-22" width="44" height="44" rx="10"/>
+              <g class="node-icon" transform="translate(-8,-8)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="1.8" y="2.8" width="12.4" height="9" rx="1.6"/><path d="M0.8 14.4h14.4"/>
+              </g>
+              <text class="node-label" x="0" y="40" text-anchor="middle">Desktop</text>
+            </g>
+            <g transform="translate(68,162)">
+              <rect class="node-badge" x="-22" y="-22" width="44" height="44" rx="10"/>
+              <g class="node-icon" transform="translate(-8,-8)" stroke-width="1.6" fill="none" stroke-linecap="round">
+                <circle cx="8" cy="8" r="6.2"/><path d="M1.8 8h12.4"/><ellipse cx="8" cy="8" rx="2.6" ry="6.2"/>
+              </g>
+              <text class="node-label" x="0" y="40" text-anchor="middle">Browsing</text>
+            </g>
+            <g transform="translate(68,259)">
+              <rect class="node-badge" x="-22" y="-22" width="44" height="44" rx="10"/>
+              <g class="node-icon" transform="translate(-8,-8)" stroke-width="1.6" fill="none" stroke-linecap="round">
+                <rect x="1.8" y="2.8" width="12.4" height="10.4" rx="1.8"/><path d="M1.8 6h12.4"/>
+              </g>
+              <text class="node-label" x="0" y="40" text-anchor="middle">Code</text>
+            </g>
+            <g transform="translate(68,356)">
+              <rect class="node-badge" x="-22" y="-22" width="44" height="44" rx="10"/>
+              <g class="node-icon" transform="translate(-8,-8)" stroke-width="1.6" fill="none" stroke-linecap="round">
+                <circle cx="7" cy="7" r="4.6"/><path d="M10.4 10.4L14 14"/>
+              </g>
+              <text class="node-label" x="0" y="40" text-anchor="middle">Search</text>
+            </g>
+
+            <g transform="translate(713,65)">
+              <g class="plug" stroke-width="1.4" fill="none" stroke-linecap="round"><rect x="-6" y="-5" width="10" height="10" rx="1.6"/><path d="M-3 -5v-3M1 -5v-3"/></g>
+              <rect class="conn-pill" x="14" y="-17" width="118" height="34" rx="17"/>
+              <circle class="dot-local conn-pulse" cx="30" cy="0" r="4.4"/>
+              <text class="badge-label" x="42" y="4.5">Claude</text>
+            </g>
+            <g transform="translate(713,162)">
+              <g class="plug" stroke-width="1.4" fill="none" stroke-linecap="round"><rect x="-6" y="-5" width="10" height="10" rx="1.6"/><path d="M-3 -5v-3M1 -5v-3"/></g>
+              <rect class="conn-pill" x="14" y="-17" width="118" height="34" rx="17"/>
+              <circle class="dot-local conn-pulse" cx="30" cy="0" r="4.4" style="animation-delay:-0.6s"/>
+              <text class="badge-label" x="42" y="4.5">Cursor</text>
+            </g>
+            <g transform="translate(713,259)">
+              <g class="plug" stroke-width="1.4" fill="none" stroke-linecap="round"><rect x="-6" y="-5" width="10" height="10" rx="1.6"/><path d="M-3 -5v-3M1 -5v-3"/></g>
+              <rect class="conn-pill" x="14" y="-17" width="118" height="34" rx="17"/>
+              <circle class="dot-local conn-pulse" cx="30" cy="0" r="4.4" style="animation-delay:-1.2s"/>
+              <text class="badge-label" x="42" y="4.5">Kiro</text>
+            </g>
+            <g transform="translate(713,356)">
+              <g class="plug" stroke-width="1.4" fill="none" stroke-linecap="round"><rect x="-6" y="-5" width="10" height="10" rx="1.6"/><path d="M-3 -5v-3M1 -5v-3"/></g>
+              <rect class="conn-pill" x="14" y="-17" width="118" height="34" rx="17"/>
+              <circle class="dot-remote conn-pulse" cx="30" cy="0" r="4.4" style="animation-delay:-0.3s"/>
+              <text class="badge-label" x="42" y="4.5">ChatGPT</text>
+            </g>
+          </svg>
+        </div>
+        <p class="flow-caption">
+          Your devices and apps <span class="arrow">&rarr;</span> one private context
+          <span class="arrow">&rarr;</span> plugged into the AI tools you already use
+        </p>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <div class="section-head">
+          <p class="kicker">// why it's different</p>
+          <h2>Not another chat log</h2>
+          <p>Held to a higher security bar than the apps you already trust it with.</p>
+        </div>
+        <div class="tilt-grid" id="tiltGrid">
+          <div class="tilt">
+            <div class="lift">
+              <div class="orb"></div>
+              <h3>End-to-end encrypted</h3>
+              <p>Encrypted on your device with a key that never touches our servers. We can't read it — and by default, no AI tool can either. Not "encrypted at rest." Encrypted before it ever leaves your machine.</p>
+            </div>
+          </div>
+          <div class="tilt">
+            <div class="lift">
+              <div class="orb cyan"></div>
+              <h3>Actually personalized</h3>
+              <p>Ask about something you looked at last week without re-explaining it. Your AI already knows what you've been working on.</p>
+            </div>
+          </div>
+          <div class="tilt">
+            <div class="lift">
+              <div class="orb ok"></div>
+              <h3>Works everywhere</h3>
+              <p>One background app quietly tracks browsing, searches, apps, and code — synced across every device you use.</p>
+            </div>
+          </div>
+          <div class="tilt">
+            <div class="lift">
+              <div class="orb"></div>
+              <h3>You're in control</h3>
+              <p>See exactly what's been recorded. Pause anytime. Revoke any AI tool's access instantly — no support ticket.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="alt">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="kicker">// setup</p>
+          <h2>How it works</h2>
+          <p>Three steps, five minutes, and your AI stops starting every conversation from zero.</p>
+        </div>
+        <div class="steps">
+          <div class="step">
+            <div class="num"></div>
+            <div><h3>Install and sign in</h3><p>Just an email and password — the same as any other app. No backend URLs, no config files.</p></div>
+          </div>
+          <div class="step">
+            <div class="num"></div>
+            <div><h3>It quietly does its job</h3><p>Browsing, searches, apps, and code activity — encrypted the instant it's captured, before it ever leaves your device.</p></div>
+          </div>
+          <div class="step">
+            <div class="num"></div>
+            <div><h3>Connect your AI tools</h3><p>Claude Desktop, Cursor, and Kiro connect locally with zero setup. ChatGPT and other remote tools connect only if you turn that on.</p></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <div class="section-head">
+          <p class="kicker">// integrations</p>
+          <h2>Works with what you already use</h2>
+          <p>Local tools never leave your Mac. Remote tools are opt-in, one account at a time.</p>
+        </div>
+        <div class="tools-row">
+          <div class="tool-pill"><span class="mono-badge">Cl</span>Claude Desktop</div>
+          <div class="tool-pill"><span class="mono-badge">Cu</span>Cursor</div>
+          <div class="tool-pill"><span class="mono-badge">Ki</span>Kiro</div>
+          <div class="tool-pill"><span class="mono-badge">Gpt</span>ChatGPT</div>
+        </div>
+        <div class="tools-legend">
+          <span><span class="leg-dot local"></span> Local — connects automatically, key never leaves your Mac</span>
+          <span><span class="leg-dot remote"></span> Remote — opt-in, you approve every connection</span>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <div class="cta-band">
+          <h2>Give your AI real memory</h2>
+          <p>Free to start. Encrypted by default. Five minutes to set up.</p>
+          <div class="ctas">
+            <a class="btn primary" href="/downloads/OneAIMemory.dmg">Download for Mac</a>
+            <a class="btn ghost" href="/downloads/OneAIMemory-Setup.exe">Download for Windows</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap footer-inner">
+      <div class="brand">© 2026 OneAIMemory</div>
+      <div class="footer-links">
+        <a href="/app">Sign in</a>
+        <a href="/downloads/OneAIMemory.dmg">Download for Mac</a>
+        <a href="/downloads/OneAIMemory-Setup.exe">Download for Windows</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+  (function () {
+    'use strict';
+    var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // ====================================================================
+    // Hero 3D scene — hand-rolled perspective renderer on canvas 2D.
+    //
+    // Deliberately no Three.js: this page is a single dependency-free file
+    // served by a bare node process, and a ~600KB CDN payload for one hero
+    // visual would be both the slowest thing on the page and a third-party
+    // availability risk. Perspective projection of a few hundred points is
+    // simple math, and hand-rolling keeps full control of the look —
+    // matching how the flow diagram above is hand-drawn SVG.
+    //
+    // The scene is a "context constellation": nodes on a sphere, linked to
+    // their near neighbours, floating over a receding grid plane. Depth is
+    // sold three ways at once — perspective scale, atmospheric fade, and
+    // painter's-algorithm draw order — so it reads as real space rather
+    // than a flat starfield.
+    // ====================================================================
+    var canvas = document.getElementById('scene');
+    var stage = document.getElementById('stage');
+    var hint = document.getElementById('stageHint');
+
+    if (canvas && stage) {
+      var ctx = canvas.getContext('2d', { alpha: true });
+      var W = 0, H = 0, dpr = 1;
+
+      var R = 200;                 // sphere radius, world units
+      var NODES = 240;
+      var LINK_DIST = 74;          // neighbour threshold for edges
+      var FOV = 780;               // focal length
+      var CAM_Z = 1400;            // camera distance — recomputed on resize()
+
+      var nodes = [];
+      var links = [];
+
+      // Fibonacci sphere: even point distribution with no polar clustering,
+      // which keeps edge density uniform (a naive lat/lon grid bunches up at
+      // the poles and looks obviously procedural).
+      (function buildNodes() {
+        var golden = Math.PI * (3 - Math.sqrt(5));
+        for (var i = 0; i < NODES; i++) {
+          var y = 1 - (i / (NODES - 1)) * 2;
+          var r = Math.sqrt(Math.max(0, 1 - y * y));
+          var th = golden * i;
+          nodes.push({
+            x: Math.cos(th) * r * R,
+            y: y * R,
+            z: Math.sin(th) * r * R,
+            // a few nodes are "hot" — brighter, tinted, gently pulsing
+            hot: Math.random() < 0.26,
+            hue: Math.random() < 0.5 ? 'cyan' : 'violet',
+            ph: Math.random() * Math.PI * 2
+          });
+        }
+        for (var a = 0; a < nodes.length; a++) {
+          for (var b = a + 1; b < nodes.length; b++) {
+            var dx = nodes[a].x - nodes[b].x, dy = nodes[a].y - nodes[b].y, dz = nodes[a].z - nodes[b].z;
+            var d2 = dx * dx + dy * dy + dz * dz;
+            if (d2 < LINK_DIST * LINK_DIST) links.push([a, b]);
+          }
+        }
+      })();
+
+      // Pre-rendered radial sprite: drawImage of one cached gradient is far
+      // cheaper per frame than building a gradient (or shadowBlur) per node.
+      function glowSprite(rgb) {
+        var s = 64, c = document.createElement('canvas');
+        c.width = c.height = s;
+        var g = c.getContext('2d');
+        var grd = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+        grd.addColorStop(0, 'rgba(' + rgb + ',1)');
+        grd.addColorStop(0.35, 'rgba(' + rgb + ',0.35)');
+        grd.addColorStop(1, 'rgba(' + rgb + ',0)');
+        g.fillStyle = grd;
+        g.fillRect(0, 0, s, s);
+        return c;
+      }
+      var spriteCyan = glowSprite('47,216,208');
+      var spriteViolet = glowSprite('139,111,240');
+      var spriteWhite = glowSprite('255,255,255');
+
+      // rotation state + inertia
+      var rotY = 0.4, rotX = -0.18;
+      var velY = 0.0016, velX = 0;      // idle drift
+      var dragging = false, lastX = 0, lastY = 0, moved = false;
+      var pointerX = 0, pointerY = 0;   // -1..1, drives parallax
+      var visible = true;
+
+      function resize() {
+        dpr = Math.min(window.devicePixelRatio || 1, 2);
+        W = stage.clientWidth;
+        H = stage.clientHeight;
+        canvas.width = Math.round(W * dpr);
+        canvas.height = Math.round(H * dpr);
+        canvas.style.width = W + 'px';
+        canvas.style.height = H + 'px';
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        // Dolly the camera so the sphere always occupies a consistent slice
+        // of the frame. Fixing CAM_Z instead would let a narrow or short
+        // viewport crop straight through the sphere, which reads as a flat
+        // mesh wall rather than an object floating in space.
+        var targetRadius = Math.min(W * 0.34, H * 0.30);
+        CAM_Z = Math.max(700, (R * FOV) / Math.max(60, targetRadius));
+      }
+      resize();
+      window.addEventListener('resize', resize);
+
+      // Project a world point to screen. Returns null when the point falls
+      // behind the camera plane, so callers can skip it entirely.
+      function project(x, y, z) {
+        var cy = Math.cos(rotX), sy = Math.sin(rotX);
+        var cx = Math.cos(rotY), sx = Math.sin(rotY);
+        var x1 = x * cx + z * sx;
+        var z1 = -x * sx + z * cx;
+        var y1 = y * cy - z1 * sy;
+        var z2 = y * sy + z1 * cy;
+        var zc = z2 + CAM_Z;
+        if (zc < 40) return null;
+        var s = FOV / zc;
+        return {
+          x: W / 2 + x1 * s + pointerX * 26,
+          y: H * 0.44 + y1 * s + pointerY * 18,
+          s: s,
+          z: z2
+        };
+      }
+
+      function draw(t) {
+        ctx.clearRect(0, 0, W, H);
+
+        // --- receding grid plane, grounds the sphere in real space ---
+        // Each segment is faded by its radial distance from the origin so the
+        // plane dissolves into the dark instead of ending on a visible square
+        // edge — the thing that makes a projected grid read as a prop.
+        var GY = R * 1.6, EXT = 900, STEP = 90;
+        ctx.lineWidth = 1;
+        function gridSeg(ax, az, bx, bz) {
+          var p1 = project(ax, GY, az), p2 = project(bx, GY, bz);
+          if (!p1 || !p2) return;
+          var rad = Math.sqrt(((ax + bx) / 2) * ((ax + bx) / 2) + ((az + bz) / 2) * ((az + bz) / 2));
+          var fade = Math.max(0, 1 - rad / EXT);
+          if (fade <= 0.01) return;
+          ctx.strokeStyle = 'rgba(150,190,255,' + (0.13 * fade * fade) + ')';
+          ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+        }
+        for (var g = -EXT; g <= EXT; g += STEP) {
+          for (var seg = -EXT; seg < EXT; seg += STEP) {
+            gridSeg(g, seg, g, seg + STEP);
+            gridSeg(seg, g, seg + STEP, g);
+          }
+        }
+
+        // project every node once per frame, reused by links and dots
+        var P = new Array(nodes.length);
+        for (var i = 0; i < nodes.length; i++) P[i] = project(nodes[i].x, nodes[i].y, nodes[i].z);
+
+        // --- links, faded by depth so the far side of the sphere recedes ---
+        for (var l = 0; l < links.length; l++) {
+          var A = P[links[l][0]], B = P[links[l][1]];
+          if (!A || !B) continue;
+          var depth = (A.z + B.z) / 2;
+          var dn = (depth + R) / (2 * R);            // 0 far … 1 near
+          var alpha = 0.04 + dn * dn * 0.30;         // squared: far side drops away fast
+          ctx.strokeStyle = 'rgba(160,185,255,' + alpha + ')';
+          ctx.lineWidth = 0.5 + dn * 0.7;
+          ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(B.x, B.y); ctx.stroke();
+        }
+
+        // --- nodes, back to front (painter's algorithm) ---
+        var order = [];
+        for (var n = 0; n < nodes.length; n++) if (P[n]) order.push(n);
+        order.sort(function (a, b) { return P[a].z - P[b].z; });
+
+        ctx.globalCompositeOperation = 'lighter';
+
+        // Energy core at the centre: two stacked glows give the mesh
+        // something to be a shell *around*, so it reads as a lit volume
+        // rather than a flat ring of dots. Additive, like the nodes.
+        var core = project(0, 0, 0);
+        if (core) {
+          var beat = 0.82 + 0.18 * Math.sin(t * 0.0013);
+          var coreSize = R * 2.6 * core.s * beat;
+          ctx.globalAlpha = 0.40 * beat;
+          ctx.drawImage(spriteViolet, core.x - coreSize / 2, core.y - coreSize / 2, coreSize, coreSize);
+          var inner = R * 1.0 * core.s * beat;
+          ctx.globalAlpha = 0.5;
+          ctx.drawImage(spriteCyan, core.x - inner / 2, core.y - inner / 2, inner, inner);
+        }
+
+        for (var o = 0; o < order.length; o++) {
+          var idx = order[o], p = P[idx], node = nodes[idx];
+          var dn2 = (p.z + R) / (2 * R);
+          var pulse = node.hot ? 0.72 + 0.28 * Math.sin(t * 0.0022 + node.ph) : 1;
+          var size = (node.hot ? 26 : 12) * p.s * pulse;
+          var alpha = (0.16 + dn2 * dn2 * 0.9) * (node.hot ? 1 : 0.55);
+          var sprite = node.hot ? (node.hue === 'cyan' ? spriteCyan : spriteViolet) : spriteWhite;
+          ctx.globalAlpha = alpha;
+          ctx.drawImage(sprite, p.x - size / 2, p.y - size / 2, size, size);
+        }
+        ctx.globalAlpha = 1;
+        ctx.globalCompositeOperation = 'source-over';
+      }
+
+      var last = 0;
+      function frame(t) {
+        if (!visible) { last = t; requestAnimationFrame(frame); return; }
+        var dt = Math.min(t - last, 48); last = t;
+
+        if (!dragging) {
+          // inertia: spin down toward the idle drift rather than stopping dead
+          velY += (0.0016 - velY) * 0.02;
+          velX *= 0.94;
+        }
+        rotY += velY * dt;
+        rotX += velX * dt;
+        rotX = Math.max(-0.75, Math.min(0.75, rotX));   // keep the grid readable
+
+        draw(t);
+        requestAnimationFrame(frame);
+      }
+
+      if (reduceMotion) {
+        draw(0);                       // one static frame, no loop
+        if (hint) hint.style.display = 'none';
+      } else {
+        requestAnimationFrame(function (t) { last = t; frame(t); });
+      }
+
+      // Skip work entirely when the hero is scrolled out of view.
+      if ('IntersectionObserver' in window) {
+        new IntersectionObserver(function (entries) {
+          visible = entries[0].isIntersecting;
+        }, { threshold: 0.01 }).observe(stage);
+      }
+
+      // --- pointer: drag to rotate, hover for parallax ---
+      function down(x, y) { dragging = true; moved = false; lastX = x; lastY = y; }
+      function move(x, y) {
+        if (!dragging) return;
+        var dx = x - lastX, dy = y - lastY;
+        lastX = x; lastY = y;
+        if (Math.abs(dx) + Math.abs(dy) > 2) moved = true;
+        velY = dx * 0.00022;
+        velX = dy * 0.00016;
+        rotY += dx * 0.005;
+        rotX = Math.max(-0.75, Math.min(0.75, rotX + dy * 0.004));
+        if (hint && moved) hint.style.opacity = '0';
+      }
+      function up() { dragging = false; }
+
+      canvas.addEventListener('mousedown', function (e) { down(e.clientX, e.clientY); });
+      window.addEventListener('mousemove', function (e) {
+        move(e.clientX, e.clientY);
+        var r = stage.getBoundingClientRect();
+        pointerX = ((e.clientX - r.left) / r.width - 0.5) * 2;
+        pointerY = ((e.clientY - r.top) / r.height - 0.5) * 2;
+      });
+      window.addEventListener('mouseup', up);
+      canvas.addEventListener('touchstart', function (e) {
+        down(e.touches[0].clientX, e.touches[0].clientY);
+      }, { passive: true });
+      canvas.addEventListener('touchmove', function (e) {
+        move(e.touches[0].clientX, e.touches[0].clientY);
+      }, { passive: true });
+      canvas.addEventListener('touchend', up);
+    }
+
+    // ====================================================================
+    // Feature cards: CSS 3D tilt toward the cursor, plus a spotlight that
+    // tracks it. transform-style: preserve-3d on the card and translateZ on
+    // the inner .lift give the contents genuine parallax against the card
+    // face rather than a flat rotation.
+    // ====================================================================
+    if (!reduceMotion) {
+      var cards = document.querySelectorAll('.tilt');
+      Array.prototype.forEach.call(cards, function (card) {
+        card.addEventListener('mousemove', function (e) {
+          var r = card.getBoundingClientRect();
+          var px = (e.clientX - r.left) / r.width;
+          var py = (e.clientY - r.top) / r.height;
+          card.style.setProperty('--mx', (px * 100) + '%');
+          card.style.setProperty('--my', (py * 100) + '%');
+          card.style.transition = 'transform 0.08s linear, border-color 0.3s ease';
+          card.style.transform =
+            'perspective(1400px) rotateY(' + ((px - 0.5) * 9) + 'deg) rotateX(' + ((0.5 - py) * 9) + 'deg) translateZ(6px)';
+        });
+        card.addEventListener('mouseleave', function () {
+          card.style.transition = 'transform 0.5s cubic-bezier(.2,.7,.3,1), border-color 0.3s ease';
+          card.style.transform = '';
+        });
+      });
+    }
+
+    // ====================================================================
+    // Live feed ticker: illustrative sample lines, not real user data (this
+    // is marketing copy, not the product surface). Two copies back to back
+    // so translateY(-50%) loops seamlessly at any row height.
+    // ====================================================================
+    var FEED_LINES = [
+      ['14:02:11', 'browsing', 'figma.com/file/project-x'],
+      ['14:02:14', 'search',   '"vector db benchmarks 2026"'],
+      ['14:02:19', 'code',     'auth.ts saved · typescript'],
+      ['14:02:24', 'app',      'Notion focused · 6m 40s'],
+      ['14:02:31', 'browsing', 'arxiv.org/abs/2601.04213'],
+      ['14:02:36', 'search',   '"postgres partition planner bug"'],
+      ['14:02:42', 'code',     'events.ts saved · typescript'],
+      ['14:02:49', 'app',      'Linear focused · 2m 05s']
+    ];
+    var track = document.getElementById('feedTrack');
+    if (track) {
+      var rows = FEED_LINES.map(function (l) {
+        return '<div class="feed-row"><span class="t">' + l[0] + '</span><span class="k">' + l[1] +
+          '</span><span class="v">' + l[2] + '</span><span class="s">encrypted</span></div>';
+      }).join('');
+      track.innerHTML = rows + rows;
+    }
+  })();
+  </script>
+
+</body>
+</html>

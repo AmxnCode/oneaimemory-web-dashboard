@@ -1,7 +1,7 @@
 export function Landing() {
   return (
     <iframe
-      src="/landing.html"
+      src={`${import.meta.env.BASE_URL}landing.html`}
       title="OneAIMemory landing"
       style={{ width: '100%', height: 'calc(100vh - 2rem)', border: 'none', borderRadius: 12 }}
     />

@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OneAIMemory Dashboard</title>
+    <!--
+      No external origins. The passphrase-derived key lives in this page's
+      memory, so any third-party script would be able to read it.
+    -->
+    <!--
+      remote-mcp-server (mcp.oneaimemory.com / localhost:4100) is a separate
+      origin from this dashboard on purpose — see remote-mcp-server/ for why
+      (Express 4 vs 5). One level deep off oneaimemory.com specifically because
+      Cloudflare's Universal SSL on this zone only covers oneaimemory.com and
+      *.oneaimemory.com, not a second-level subdomain (learned the hard way —
+      TLS handshake failures, not a propagation delay). The OAuth consent
+      screen (pages/OAuthConsent) talks to it directly.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; connect-src 'self' http://localhost:4000 https://mcp.oneaimemory.com http://localhost:4100; style-src 'self' 'unsafe-inline'; img-src 'self' data:;"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
